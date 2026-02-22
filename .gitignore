@@ -1,0 +1,7 @@
+.env
+
+# exe file
+*.exe
+
+# log file
+*.log
