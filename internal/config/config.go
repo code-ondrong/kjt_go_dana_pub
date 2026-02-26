@@ -25,6 +25,9 @@ type DANAConfig struct {
 	// Server config
 	ServerPort int
 	ServerHost string
+
+	// Origin untuk Merchant Management API (required by DANA)
+	Origin string
 }
 
 // DefaultConfig mengembalikan konfigurasi default dari environment variables
@@ -57,11 +60,12 @@ func DefaultConfig() *DANAConfig {
 		MerchantID:   getEnv("DANA_MERCHANT_ID", ""),
 		Environment:  env,
 
-		SandboxBaseURL:    "https://api.sandbox.dana.id",
+		SandboxBaseURL:    "http://api.sandbox.dana.id", // BUGFIX #1: Sandbox uses HTTP, not HTTPS
 		ProductionBaseURL: "https://api.dana.id",
 
 		ServerPort: port,
 		ServerHost: getEnv("SERVER_HOST", "0.0.0.0"),
+		Origin:     getEnv("ORIGIN", "http://localhost:8888"), // Required for Merchant Management
 	}
 }
 

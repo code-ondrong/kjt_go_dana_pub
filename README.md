@@ -1,505 +1,319 @@
-# DANA Payment Gateway & Shop Management API (Go + Gin)
+# DANA Shop Management API (Go + Gin)
 
-⚠️ **IMPORTANT**: Shop Management API requires RSA Signature authentication. Current implementation uses Bearer/ClientSecret for testing. For production, you must implement RSA Signature.
+✅ **SDK API Working**: Official DANA SDK integration for Shop Management API.
 
-## 🚨 Known Issues & Fixes
+## 📦 SDK API Implementation
 
-### Bug Fixes Applied (2026-02-23)
-- ✅ **Bug #1**: Fixed Sandbox Base URL from `https://` to `http://api.sandbox.dana.id`
-- ✅ **Bug #3**: Added missing `ShopIdType` field (default: `EXTERNAL_SHOP_ID`)
+This project uses the **Official DANA SDK** (`github.com/dana-id/dana-go`) for Shop Management API with proper RSA Signature authentication.
 
-### ⚠️ Bug #2: RSA Signature Required
-**Current Status**: Using Bearer/ClientSecret authentication (for testing only)
+### API Endpoints
 
-**Issue**: Merchant Management API requires RSA Signature, not Bearer token. ClientSecret is only for Disbursement API.
+All endpoints are under `/api/v1`:
 
-**To Fix**: You have two options:
-
-#### Option 1: Implement RSA Signature (Recommended)
-Implement proper RSA Signature following [DANA documentation](https://dashboard.dana.id/api-docs-v2/guide/authentication).
-
-Required changes in `internal/dana/client.go`:
-```go
-// In doRequest method, replace Bearer with RSA Signature
-signature := c.signer.SignRequest(timestamp, method, path, bodyBytes)
-req.Header.Set("X-SIGNATURE", signature)
-// Remove: req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.cfg.ClientSecret))
+#### Shop Management (Official SDK)
+```
+POST /api/v1/shop/create  - Create new shop
+GET  /api/v1/shop/query   - Query shop information
+POST /api/v1/shop/update  - Update shop information
 ```
 
-#### Option 2: Use Official SDK
-Switch to official Go SDK: `github.com/dana-id/dana-go`
+#### Division Management (Official SDK)
+```
+POST /api/v1/division/create  - Create new division
+GET  /api/v1/division/query   - Query division information
+POST /api/v1/division/update  - Update division information
+```
 
-```bash
-go get github.com/dana-id/dana-go
+#### Disbursement (Official SDK)
+```
+POST /api/v1/disbursement/transfer-to-dana - Disbursement to DANA balance
+```
+
+#### Common
+```
+GET  /api/v1/health        - Health check
 ```
 
 ---
 
-## 🚀 Fitur Utama
+## 🚀 Quick Start
 
-### QRIS Payment
-*   **Generate QRIS**: Membuat QR Code DANA secara dinamis.
-*   **Status Query**: Pengecekan status transaksi secara manual via API.
-*   **Real-time Updates**: Notifikasi status pembayaran otomatis ke frontend menggunakan SSE.
-*   **Signature RSA-SHA256**: Autentikasi aman sesuai standar integrasi DANA.
+### 1. Create a Shop
 
-### Shop Management
-*   **Create Shop**: Membuat outlet/shop baru dalam organisasi merchant.
-*   **Update Shop**: Mengupdate informasi shop yang sudah ada.
-*   **Query Shop**: Mendapatkan daftar shop dengan berbagai filter dan pagination.
-*   **Division Support**: Manajemen sub-merchant (division) untuk organisasi yang kompleks.
+**Request:**
+```bash
+curl -X POST http://localhost:8888/api/v1/shop/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shopParentId": "YOUR_MERCHANT_ID",
+    "externalShopId": "SHOP-001",
+    "shopName": "Toko Jakarta",
+    "shopParentType": "MERCHANT",
+    "sizeType": "SMALL"
+  }'
+```
 
-## 🛠️ Instalasi
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "responseCode": "00000000",
+    "responseMessage": "SUCCESS",
+    "shopId": "216660000003283886722",
+    "shopName": "Toko Jakarta",
+    "shopStatus": "ACTIVE"
+  }
+}
+```
 
-1.  Clone repository dan masuk ke direktori project.
-2.  Instal dependensi:
-    ```bash
-    go mod tidy
-    ```
-3.  Konfigurasi environment variables di `.env`.
+### 2. Query Shop
 
-## ⚙️ Konfigurasi (.env)
+**Smart Detection:** The system automatically detects if you are using an `INNER_ID` (DANA ID) or `EXTERNAL_ID` (your ID). `shopIdType` is now optional.
+
+**Request:**
+```bash
+# Automatic detection (Recommended)
+curl "http://localhost:8888/api/v1/shop/query?shopId=SHOP-001&shopParentId=YOUR_MERCHANT_ID"
+
+# Or force a specific type
+curl "http://localhost:8888/api/v1/shop/query?shopId=21666000000123&shopParentId=YOUR_MERCHANT_ID&shopIdType=INNER_ID"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "responseCode": "00000000",
+    "responseMessage": "SUCCESS",
+    "shopDetailInfoList": [
+      {
+        "shopId": "SHOP-001",
+        "shopName": "Toko Jakarta",
+        "shopAlias": "SHOP-001",
+        "shopStatus": "ACTIVE",
+        "sizeType": "UKE",
+        "shopParentId": "YOUR_MERCHANT_ID",
+        "nmid": "93600...X",
+        "shopAddress": "Jl. Sudirman No. 1"
+      }
+    ],
+    "rawDana": {
+       "resultInfo": { "resultStatus": "S", ... },
+       "shopResourceInfo": { "merchantId": "...", "mainName": "...", "nmid": "..." }
+    }
+  }
+}
+```
+
+### 3. Update Shop
+
+**Request:**
+```bash
+curl -X POST http://localhost:8888/api/v1/shop/update \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shopId": "SHOP-001",
+    "shopIdType": "EXTERNAL_ID",
+    "shopParentId": "YOUR_MERCHANT_ID",
+    "shopName": "Toko Jakarta - Updated"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "responseCode": "00000000",
+    "responseMessage": "SUCCESS",
+    "shopId": "SHOP-001",
+    "shopName": "Toko Jakarta - Updated",
+    "shopStatus": "ACTIVE"
+  }
+}
+```
+
+---
+
+## 🏢 Division Management (SDK Implementation)
+
+### 1. Create a Division
+
+**Request:**
+```bash
+curl -X POST http://localhost:8888/api/v1/division/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "merchantId": "YOUR_MERCHANT_ID",
+    "externalDivisionId": "DIV-001",
+    "mainName": "Divisi Jakarta",
+    "divisionDesc": "Divisi Operasional Jakarta"
+  }'
+```
+
+### 2. Query Division
+
+**Smart Detection:** The system automatically detects if you are using an `INNER_ID` (DANA ID) or `EXTERNAL_ID` (your ID). `divisionIdType` is now optional.
+
+**Request:**
+```bash
+curl "http://localhost:8888/api/v1/division/query?divisionId=DIV-001&merchantId=YOUR_MERCHANT_ID"
+```
+
+### 3. Update Division
+
+**Request:**
+```bash
+curl -X POST http://localhost:8888/api/v1/division/update \
+  -H "Content-Type: application/json" \
+  -d '{
+    "merchantId": "YOUR_MERCHANT_ID",
+    "divisionId": "DIV-001",
+    "mainName": "Divisi Jakarta - Updated",
+    "divisionDesc": "Divisi Operasional Jakarta Updated"
+  }'
+```
+
+---
+
+## 💸 Disbursement Management (SDK Implementation)
+
+### 1. Disbursement to DANA Balance
+
+**Request:**
+```bash
+curl -X POST http://localhost:8888/api/v1/disbursement/transfer-to-dana \
+  -H "Content-Type: application/json" \
+  -d '{
+    "partnerReferenceNo": "TRANS-001",
+    "amount": "1000.00",
+    "currency": "IDR",
+    "customerNumber": "08123456789",
+    "notes": "Hadiah untuk pelanggan"
+  }'
+```
+
+---
+
+## ⚙️ Configuration (.env)
 
 ```env
-# DANA Credentials
-X_PARTNER_ID=your_partner_id
-DANA_CLIENT_ID=your_partner_id
-DANA_MERCHANT_ID=your_merchant_id
+# DANA Credentials (REQUIRED for Shop Management API)
+DANA_CLIENT_ID=your_client_id
 DANA_CLIENT_SECRET=your_client_secret
-
-# RSA Keys (Required for Shop Management in production)
-DANA_PRIVATE_KEY=your_private_key
-DANA_PUBLIC_KEY=dana_public_key
-
-# Environment
+DANA_PRIVATE_KEY=your_private_key_base64_or_pem_format
 DANA_ENV=sandbox
+ORIGIN=http://localhost:8888
 SERVER_PORT=8888
 ```
 
-### ⚠️ Authentication Notes
+### Required Credentials
 
-| API Type | Authentication Method | Status |
-|----------|---------------------|---------|
-| QRIS Payment | Bearer/ClientSecret | ✅ Working |
-| Shop Management | RSA Signature | ⚠️ Needs Implementation |
-
----
-
-## 📡 API Endpoints
-
-### QRIS Payment APIs
-
-#### 1. Create QRIS
-Membuat QR Code pembayaran.
-*   **URL**: `POST /api/qris/create`
-*   **Payload**:
-    ```json
-    {
-      "partnerReferenceNo": "INV-2024001",
-      "amount": 1000,
-      "description": "Pembayaran Kopi",
-      "expiryMinutes": 15
-    }
-    ```
-
-#### 2. Check Status
-Mengecek status transaksi tertentu.
-*   **URL**: `GET /api/qris/status/:partnerReferenceNo`
-
-#### 3. SSE Notification (Real-time)
-Mendapatkan update status secara real-time.
-*   **URL**: `GET /sse/payment?channel=:partnerReferenceNo`
-*   **Event Name**: `payment_update`
-
-#### 4. Webhook DANA
-Callback otomatis dari server DANA.
-*   **URL**: `POST /webhook/dana`
-
----
-
-### Shop Management APIs
-
-#### 1. Create Shop
-Membuat outlet/shop baru dengan informasi lengkap.
-
-*   **URL**: `POST /api/shop/create`
-
-**Minimal Required Fields:**
-```json
-{
-  "shopParentType": "MERCHANT",
-  "shopParentId": "YOUR_MERCHANT_ID",
-  "shopName": "Toko Saya Cabang Jakarta",
-  "shopAddress": "Jl. Sudirman No. 1",
-  "shopCity": "Jakarta Selatan",
-  "shopProvince": "DKI Jakarta"
-}
-```
-
-**Complete Request with All Fields:**
-```json
-{
-  "shopParentType": "MERCHANT",
-  "shopParentId": "YOUR_MERCHANT_ID",
-
-  "shopName": "Toko Saya Cabang Jakarta",
-  "shopAlias": "toko-jakarta",
-  "shopType": "RETAIL",
-  "shopCategoryCode": "5462",
-  "sizeType": "SMALL",
-
-  "shopAddress": "Jl. Sudirman No. 1",
-  "shopCity": "Jakarta Selatan",
-  "shopProvince": "DKI Jakarta",
-  "shopPostalCode": "12190",
-  "shopCountryCode": "ID",
-  "shopLat": "-6.2088",
-  "shopLong": "106.8456",
-
-  "shopPhoneNo": "02112345678",
-  "shopMobileNo": "628123456789",
-  "shopEmail": "toko@example.com",
-
-  "shopOpenTime": "08:00",
-  "shopCloseTime": "22:00",
-
-  "loyalty": "YES",
-  "businessEntity": "INDIVIDUAL",
-
-  "ownerIdType": "KTP",
-  "ownerId": "1234567890123456",
-  "ownerName": "Budi Santoso",
-  "ownerBirthDate": "1990-01-15",
-
-  "shopOwning": "OWNER",
-
-  "businessDocs": [
-    {
-      "docType": "KTP",
-      "docFile": "BASE64_ENCODED_FILE_CONTENT"
-    }
-  ],
-
-  "mobileNoInfo": [
-    {
-      "mobileNo": "628123456789",
-      "verified": "TRUE"
-    }
-  ],
-
-  "merchantResourceInformation": [
-    {
-      "resourceType": "LOGO",
-      "resourceName": "logo.png",
-      "resourceFile": "BASE64_ENCODED_LOGO"
-    }
-  ],
-
-  "bankAccountNo": "1234567890",
-  "bankAccountName": "Budi Santoso",
-  "bankCode": "014"
-}
-```
-
-**Response:**
-```json
-{
-  "responseCode": "2005400",
-  "responseMessage": "SUCCESS",
-  "shopId": "SHOP_ID",
-  "shopName": "Toko Saya Cabang Jakarta",
-  "shopStatus": "ACTIVE",
-  "createdAt": "2026-02-23T10:00:00+07:00"
-}
-```
-
----
-
-#### 2. Update Shop
-Mengupdate informasi shop yang sudah ada. Hanya perlu mengirim field yang berubah.
-
-*   **URL**: `POST /api/shop/update`
-
-**Payload (hanya field yang berubah):**
-```json
-{
-  "shopId": "SHOP_ID",
-  "shopName": "Toko Saya Cabang Jakarta — Updated",
-  "shopPhoneNo": "02198765432",
-  "shopOpenTime": "09:00",
-  "shopCloseTime": "21:00",
-  "shopAddress": "Jl. Sudirman No. 10, Lt. 2",
-  "shopStatus": "ACTIVE"
-}
-```
-
-**Response:**
-```json
-{
-  "responseCode": "2005400",
-  "responseMessage": "SUCCESS",
-  "shopId": "SHOP_ID",
-  "shopName": "Toko Saya Cabang Jakarta — Updated",
-  "shopStatus": "ACTIVE",
-  "updatedAt": "2026-02-23T11:00:00+07:00"
-}
-```
-
----
-
-#### 3. Query Shop
-
-**Cara 1: Query List Semua Shop (by Parent ID)**
-
-Untuk mendapatkan **LIST semua shop** di bawah merchant/division tertentu:
-
-*   **URL**: `POST /api/shop/query`
-
-**Payload:**
-```json
-{
-  "shopParentType": "MERCHANT",
-  "shopParentId": "YOUR_MERCHANT_ID",
-  "pageNo": 1,
-  "pageSize": 10
-}
-```
-
-**Atau gunakan GET:**
-```
-GET /api/shop/query?shopParentType=MERCHANT&shopParentId=YOUR_MERCHANT_ID&pageNo=1&pageSize=10
-```
-
----
-
-**Cara 2: Query Shop Spesifik (by Shop ID)**
-
-Untuk mendapatkan **DETAIL satu shop** spesifik:
-
-*   **URL**: `POST /api/shop/query`
-
-**Payload:**
-```json
-{
-  "shopId": "SPECIFIC_SHOP_ID",
-  "shopIdType": "EXTERNAL_SHOP_ID",
-  "pageNo": 1,
-  "pageSize": 1
-}
-```
-
-**Atau gunakan GET:**
-```
-GET /api/shop/query?shopId=SPECIFIC_SHOP_ID
-```
-
----
-
-**Response:**
-```json
-{
-  "responseCode": "2005400",
-  "responseMessage": "SUCCESS",
-  "totalCount": 45,
-  "pageNo": 1,
-  "pageSize": 10,
-  "shops": [
-    {
-      "shopId": "SHOP_ID",
-      "shopName": "Toko Saya Cabang Jakarta",
-      "shopAlias": "toko-jakarta",
-      "shopType": "RETAIL",
-      "shopCategory": "5462",
-      "shopStatus": "ACTIVE",
-      "sizeType": "SMALL",
-      "shopAddress": "Jl. Sudirman No. 1",
-      "shopCity": "Jakarta Selatan",
-      "shopProvince": "DKI Jakarta",
-      "shopPostalCode": "12190",
-      "shopCountryCode": "ID",
-      "shopLat": "-6.2088",
-      "shopLong": "106.8456",
-      "shopPhoneNo": "02112345678",
-      "shopMobileNo": "628123456789",
-      "shopEmail": "toko@example.com",
-      "shopOpenTime": "08:00",
-      "shopCloseTime": "22:00",
-      "loyalty": "YES",
-      "businessEntity": "INDIVIDUAL",
-      "ownerIdType": "KTP",
-      "ownerId": "1234567890123456",
-      "ownerName": "Budi Santoso",
-      "ownerBirthDate": "1990-01-15",
-      "shopOwning": "OWNER",
-      "bankAccountNo": "1234567890",
-      "bankAccountName": "Budi Santoso",
-      "bankCode": "014",
-      "shopParentType": "MERCHANT",
-      "shopParentId": "YOUR_MERCHANT_ID",
-      "createdAt": "2026-02-23T10:00:00+07:00",
-      "updatedAt": "2026-02-23T11:00:00+07:00"
-    }
-  ]
-}
-```
+1. **DANA_CLIENT_ID**: Partner ID provided by DANA
+2. **DANA_CLIENT_SECRET**: Client Secret for authentication (REQUIRED!)
+3. **DANA_PRIVATE_KEY**: RSA Private Key for signature authentication
+   - Can be in base64 format (single line) or PEM format with headers
+   - Example PEM: `-----BEGIN PRIVATE KEY-----\nMIIEvwIBADAN...\n-----END PRIVATE KEY-----`
+4. **ORIGIN**: Your application domain (required by DANA for Merchant Management API)
 
 ---
 
 ## 📋 Reference Fields
 
-### Status Shop
-- **ACTIVE**: Shop aktif dan dapat menerima pembayaran
-- **INACTIVE**: Shop tidak aktif
-- **SUSPENDED**: Shop ditangguhkan sementara
-
 ### Shop Parent Type
-- **MERCHANT**: Shop di bawah merchant langsung
-- **DIVISION**: Shop di bawah sub-merchant/division
+- **MERCHANT**: Shop under direct merchant
+- **DIVISION**: Shop under sub-merchant/division
 
-### Shop Type
-- **RETAIL**: Toko retail
-- **F&B**: Food & Beverage
-- **SERVICE**: Jasa
-- **WHOLESALE**: Grosir
-- **E-COMMERCE**: E-commerce
+### Shop/Division ID Type
+- **EXTERNAL_ID**: ID from your system (default/detected automatically)
+- **INNER_ID**: ID from DANA system (detected automatically for numeric IDs >= 16 chars)
+- **Automatic Detection**: Applicable for both Shop and Division queries/updates.
 
-### Size Type
-- **MICRO**: Usaha mikro
-- **SMALL**: Usaha kecil
-- **MEDIUM**: Usaha menengah
-- **LARGE**: Usaha besar
+### Size Type (auto-mapped to DANA codes)
+You can use common names and they will be auto-mapped:
+- **MICRO** → `UMI` (Usaha Mikro)
+- **SMALL** → `UKE` (Usaha Kecil)
+- **MEDIUM** → `UME` (Usaha Menengah)
+- **LARGE** → `UBE` (Usaha Besar)
 
-### Shop ID Type (QueryShop)
-- **EXTERNAL_SHOP_ID**: ID shop dari sistem partner (default)
-- **DANA_SHOP_ID**: ID shop yang diberikan oleh DANA
-
-### Business Entity
-- **INDIVIDUAL**: Perorangan
-- **COMPANY**: Perusahaan/Badan usaha
-
-### Owner ID Type
-- **KTP**: Kartu Tanda Penduduk
-- **PASPOR**: Paspor
-- **NPWP**: Nomor Pokok Wajib Pajak
-- **SIUP**: Surat Izin Usaha Perdagangan
-
-### Shop Owning
-- **OWNER**: Milik sendiri
-- **RENTER**: Sewa
-
-### Bank Codes (Indonesia)
-- **014**: BCA
-- **009**: BNI
-- **002**: BRI
-- **008**: Mandiri
-- **013**: Permata
-- **022**: CIMB Niaga
-- **153**: BTPN/Jenius
+### MCC Codes
+Merchant Category Codes are auto-filled with default value `5734` (Computer Software Stores).
+You can modify this in the code if needed.
 
 ---
 
-## 📝 Panduan Query Shop yang Benar
+## 🏃 Running the Server
 
-### 🔑 Kunci Penting
-
-| Kebutuhan | Field yang Diisi | Hasil |
-|-----------|------------------|------|
-| **List semua shop** | `shopParentId` + `shopParentType`, **kosongkan** `shopId` | Semua shop di bawah parent |
-| **Detail 1 shop** | `shopId` spesifik + `shopIdType` | Detail shop tersebut |
-| **Filter status** | Tambahkan `shopStatus` | Filter ACTIVE/INACTIVE/SUSPENDED |
-| **Pagination** | `pageNo` + `pageSize` | Hasil terbagi halaman |
-
-### ✅ Contoh Query List
-```json
-{
-  "shopParentType": "MERCHANT",
-  "shopParentId": "YOUR_MERCHANT_ID",
-  "pageNo": 1,
-  "pageSize": 20
-}
-```
-**Hasil**: Semua shop di bawah merchant tersebut (max 20 per halaman).
-
-### ✅ Contoh Query Detail
-```json
-{
-  "shopId": "SPECIFIC_SHOP_ID",
-  "shopIdType": "EXTERNAL_SHOP_ID"
-}
-```
-**Hasil**: Detail lengkap shop dengan ID tersebut.
-
----
-
-## 🖥️ Demo UI
-Untuk mencoba integrasi secara langsung, jalankan aplikasi dan buka browser:
-👉 **[http://localhost:8888/](http://localhost:8888/)**
-
-## 🏗️ Struktur Project
-*   `internal/dana`: Client SDK untuk komunikasi ke DANA.
-*   `internal/api`: Handler dan routing menggunakan Gin.
-*   `internal/sse`: Pengelolaan event streaming.
-*   `internal/config`: Konfigurasi environment.
-*   `templates`: Halaman frontend demo.
-
-## 🏃 Menjalankan Aplikasi
 ```bash
+# Install dependencies
+go mod download
+
+# Run server
 go run main.go
 ```
 
-## 🧪 Contoh Penggunaan dengan cURL
-
-### Query Shop List (Sekarang dengan Base URL yang benar)
-```bash
-# Menggunakan POST
-curl -X POST http://localhost:8888/api/shop/query \
-  -H "Content-Type: application/json" \
-  -d '{
-    "shopParentType": "MERCHANT",
-    "shopParentId": "216620060009037857198",
-    "pageNo": 1,
-    "pageSize": 10
-  }'
-
-# Menggunakan GET
-curl "http://localhost:8888/api/shop/query?shopParentType=MERCHANT&shopParentId=216620060009037857198&pageNo=1&pageSize=10"
-```
-
-### Create Shop (Minimal)
-```bash
-curl -X POST http://localhost:8888/api/shop/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "shopParentType": "MERCHANT",
-    "shopParentId": "216620060009037857198",
-    "shopName": "Toko Cabang Jakarta",
-    "shopAddress": "Jl. Sudirman No. 1",
-    "shopCity": "Jakarta Selatan",
-    "shopProvince": "DKI Jakarta"
-  }'
-```
+Server will start on `http://localhost:8888`
 
 ---
 
-## 📚 Referensi
+## 📚 Official Documentation
 
-### Official Documentation
-- [DANA API Documentation - Merchant Management](https://dashboard.dana.id/api-docs-v2/api/merchant-management/overview)
-- [DANA API Documentation - Shop API](https://dashboard.dana.id/api-docs-v2/api/merchant-management/shop-api/create-shop)
-- [DANA Authentication Guide](https://dashboard.dana.id/api-docs-v2/guide/authentication)
-
-### Official SDK
+- [DANA API Documentation](https://dashboard.dana.id/api-docs-v2/api/merchant-management/overview)
 - [Official Go SDK](https://github.com/dana-id/dana-go)
-- **Recommended**: Switch to official SDK for production use
+- [UAT Script Test](https://github.com/dana-id/uat-script) - Run this first to validate your setup!
 
 ---
 
-## 🔒 Security Notes
+## 🏗️ Project Structure
 
-⚠️ **IMPORTANT**: Merchant Management API requires RSA Signature authentication. Do NOT use this implementation in production without proper RSA Signature implementation.
+```
+internal/
+├── api/
+│   ├── routes.go       # Route definitions
+│   └── sdk_handlers.go # HTTP handlers for SDK API
+├── config/
+│   └── config.go       # Configuration management
+├── dana/
+│   ├── sdk_client.go   # SDK client wrapper
+│   └── types.go        # Request/Response types
+└── sse/
+    └── broker.go       # SSE support (for future use)
+```
 
-For production, either:
-1. Implement proper RSA Signature (see DANA authentication docs)
-2. Use official SDK: `github.com/dana-id/dana-go`
+---
 
-Current implementation uses Bearer/ClientSecret which is only suitable for QRIS Payment API, NOT Shop Management.
+## ⚠️ Important Notes
+
+1. **Client Secret is REQUIRED**: Unlike some DANA APIs, Shop Management API requires both Client Secret AND Private Key for authentication.
+
+2. **Environment Handling**: The SDK automatically handles sandbox vs production URLs. Do NOT manually override the server URLs in your code.
+
+3. **MCC Codes**: DANA API requires MCC (Merchant Category Code) for shop creation. The default is `5734` (Computer Software Stores).
+
+4. **Size Type Mapping**: Common size type names (SMALL, MEDIUM, etc.) are automatically mapped to DANA's internal codes (UKE, UME, etc.).
+
+5. **Sandbox Environment**: Uses HTTPS for sandbox by default in the SDK. The SDK handles protocol selection automatically.
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Errors
+
+1. **OAUTH_FAILED (00000016)**
+   - Cause: Missing or invalid CLIENT_SECRET
+   - Fix: Ensure DANA_CLIENT_SECRET is set in .env
+
+2. **PARAM_ILLEGAL - invalid sizeType**
+   - Cause: SizeType value not recognized
+   - Fix: Use SMALL, MEDIUM, LARGE, or MICRO (will be auto-mapped)
+
+3. **PARAM_ILLEGAL - Mcc codes can't be empty**
+   - Cause: MCC codes not provided
+   - Fix: The SDK now auto-fills default MCC code `5734`
+
+4. **MSG_PARSE_ERROR (00000015)**
+   - Cause: Request format incorrect or authentication failure
+   - Fix: Ensure all credentials are correct and don't override SDK server URLs

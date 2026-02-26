@@ -22,17 +22,17 @@ func main() {
 	// Configuration
 	cfg := config.DefaultConfig()
 
-	// Initialize DANA client
-	danaClient, err := dana.NewClient(cfg)
+	// Initialize Official DANA SDK client
+	sdkClient, err := dana.NewSDKClient(cfg)
 	if err != nil {
-		log.Fatalf("❌ Failed to initialize DANA client: %v", err)
+		log.Fatalf("❌ Failed to initialize DANA SDK client: %v", err)
 	}
 
 	// Initialize SSE Broker
 	sseBroker := sse.NewBroker()
 
-	// Initialize API Handler
-	handler := api.NewAPIHandler(danaClient, sseBroker)
+	// Initialize SDK API Handler
+	sdkHandler := api.NewSDKAPIHandler(sdkClient, sseBroker)
 
 	r := gin.Default()
 
@@ -42,12 +42,14 @@ func main() {
 	// Load templates
 	r.LoadHTMLGlob("templates/*")
 
-	// Setup Routes
-	api.SetupRoutes(r, handler, sseBroker)
+	// Setup Routes - only SDK API
+	api.SetupRoutes(r, sdkHandler, sseBroker)
 
 	// Run server
 	addr := fmt.Sprintf(":%d", cfg.ServerPort)
-	log.Printf("🚀 DANA QRIS Server started on http://localhost:%d", cfg.ServerPort)
+	log.Printf("🚀 DANA Shop Management Server started on http://localhost:%d", cfg.ServerPort)
+	log.Printf("📦 Shop API: /api/v1/shop/*")
+	log.Printf("🏥 Health Check: /api/v1/health")
 
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("❌ Failed to start server: %v", err)

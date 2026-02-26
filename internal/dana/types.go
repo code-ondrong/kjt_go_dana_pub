@@ -1,6 +1,9 @@
 package dana
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ============================================================
 // REQUEST & RESPONSE TYPES
@@ -14,11 +17,10 @@ type CreateQRRequest struct {
 	// Jumlah pembayaran dalam IDR
 	Amount Amount `json:"amount"`
 
-	// Deskripsi/keterangan pembayaran
-	MerchantID    string `json:"merchantId,omitempty"`
-	SubMerchantID string `json:"subMerchantId,omitempty"`
+	// Merchant ID (required untuk QRIS)
+	MerchantID string `json:"merchantId,omitempty"`
 
-	// Expiry time untuk QR
+	// Expiry time untuk QR (format: YYYY-MM-DDTHH:mm:ss+07:00)
 	ExpiredTime string `json:"expiredTime,omitempty"`
 
 	// Additional info
@@ -141,8 +143,8 @@ const (
 
 // Shop ID Type constants untuk QueryShop
 const (
-	ShopIdTypeExternalID = "EXTERNAL_SHOP_ID" // ID dari sistem partner
-	ShopIdTypeDanaID     = "DANA_SHOP_ID"     // ID dari DANA
+	ShopIdTypeExternalID = "EXTERNAL_ID" // ID dari sistem partner (SDK enum)
+	ShopIdTypeDanaID     = "INNER_ID"    // ID dari DANA (SDK enum)
 )
 
 // ============================================================
@@ -273,6 +275,12 @@ type UpdateShopRequest struct {
 	// Shop ID yang akan diupdate
 	ShopID string `json:"shopId" binding:"required"`
 
+	// Shop ID Type (INNER_ID atau EXTERNAL_ID)
+	ShopIdType string `json:"shopIdType,omitempty"`
+
+	// Merchant ID (required untuk update via SDK)
+	ShopParentId string `json:"shopParentId,omitempty"`
+
 	// Nama shop baru (opsional)
 	ShopName string `json:"shopName,omitempty"`
 
@@ -382,6 +390,7 @@ type QueryShopResponse struct {
 	PageNo     *int32 `json:"pageNo,omitempty"`
 	PageSize   *int32 `json:"pageSize,omitempty"`
 
+	RawDANA        interface{}            `json:"rawDana,omitempty"` // Full raw response from DANA
 	AdditionalInfo map[string]interface{} `json:"additionalInfo,omitempty"`
 }
 
@@ -402,8 +411,11 @@ type ShopInfo struct {
 
 	// Alamat lengkap
 	ShopAddress     string `json:"shopAddress,omitempty"`
+	ShopAddress2    string `json:"shopAddress2,omitempty"`
 	ShopCity        string `json:"shopCity,omitempty"`
 	ShopProvince    string `json:"shopProvince,omitempty"`
+	ShopSubDistrict string `json:"shopSubDistrict,omitempty"`
+	ShopArea        string `json:"shopArea,omitempty"`
 	ShopPostalCode  string `json:"shopPostalCode,omitempty"`
 	ShopCountryCode string `json:"shopCountryCode,omitempty"`
 	ShopLat         string `json:"shopLat,omitempty"`
@@ -443,8 +455,117 @@ type ShopInfo struct {
 	UpdatedAt string `json:"updatedAt,omitempty"`
 
 	// Parent info
-	ShopParentType string `json:"shopParentType,omitempty"`
-	ShopParentId   string `json:"shopParentId,omitempty"`
+	ShopParentType   string `json:"shopParentType,omitempty"`
+	ShopParentId     string `json:"shopParentId,omitempty"`
+	ParentDivisionId string `json:"parentDivisionId,omitempty"`
+
+	// DANA Specific
+	Nmid string `json:"nmid,omitempty"`
+
+	// Raw maps
+	LogoUrlMap map[string]string      `json:"logoUrlMap,omitempty"`
+	ExtInfo    map[string]interface{} `json:"extInfo,omitempty"`
 
 	AdditionalInfo map[string]interface{} `json:"additionalInfo,omitempty"`
+}
+
+// ============================================================
+// DIVISION MANAGEMENT TYPES
+// ============================================================
+
+// CreateDivisionRequest request untuk membuat division baru
+type CreateDivisionRequest struct {
+	MerchantId         string   `json:"merchantId" binding:"required"`
+	ExternalDivisionId string   `json:"externalDivisionId" binding:"required"`
+	MainName           string   `json:"mainName" binding:"required"`
+	DivisionDesc       string   `json:"divisionDesc,omitempty"`
+	MccCodes           []string `json:"mccCodes,omitempty"`
+}
+
+// CreateDivisionResponse response dari pembuatan division
+type CreateDivisionResponse struct {
+	ResponseCode    string `json:"responseCode"`
+	ResponseMessage string `json:"responseMessage"`
+	DivisionID      string `json:"divisionId"`
+	MerchantID      string `json:"merchantId"`
+	MainName        string `json:"mainName"`
+}
+
+// UpdateDivisionRequest request untuk mengupdate division
+type UpdateDivisionRequest struct {
+	DivisionId     string  `json:"divisionId" binding:"required"`
+	DivisionIdType string  `json:"divisionIdType" binding:"required"` // INNER_ID or EXTERNAL_ID
+	MerchantId     string  `json:"merchantId" binding:"required"`
+	MainName       *string `json:"mainName,omitempty"`
+	DivisionDesc   *string `json:"divisionDesc,omitempty"`
+}
+
+// UpdateDivisionResponse response dari update division
+type UpdateDivisionResponse struct {
+	ResponseCode    string `json:"responseCode"`
+	ResponseMessage string `json:"responseMessage"`
+	DivisionID      string `json:"divisionId"`
+}
+
+// QueryDivisionRequest request untuk query division
+type QueryDivisionRequest struct {
+	MerchantId     string `form:"merchantId" binding:"required"`
+	DivisionId     string `form:"divisionId" binding:"required"`
+	DivisionIdType string `form:"divisionIdType" binding:"required"` // INNER_ID or EXTERNAL_ID
+}
+
+// QueryDivisionResponse response dari query division
+type QueryDivisionResponse struct {
+	ResponseCode    string        `json:"responseCode"`
+	ResponseMessage string        `json:"responseMessage"`
+	DivisionDetail  *DivisionInfo `json:"divisionDetail,omitempty"`
+}
+
+// DivisionInfo informasi lengkap division
+type DivisionInfo struct {
+	DivisionID         string `json:"divisionId"`
+	MerchantID         string `json:"merchantId"`
+	ExternalDivisionId string `json:"externalDivisionId"`
+	MainName           string `json:"mainName"`
+	DivisionDesc       string `json:"divisionDesc,omitempty"`
+	Status             string `json:"status"`
+}
+
+// ============================================================
+// DISBURSEMENT TYPES
+// ============================================================
+
+// TransferToDanaRequest request untuk transfer ke DANA balance
+type TransferToDanaRequest struct {
+	PartnerReferenceNo string      `json:"partnerReferenceNo" binding:"required"`
+	Amount             json.Number `json:"amount" binding:"required"`
+	Currency           string      `json:"currency" binding:"required"` // IDR
+	CustomerNumber     string      `json:"customerNumber" binding:"required"`
+	Notes              string      `json:"notes,omitempty"`
+}
+
+// TransferToDanaResponse response dari transfer ke DANA balance
+type TransferToDanaResponse struct {
+	ResponseCode    string      `json:"responseCode"`
+	ResponseMessage string      `json:"responseMessage"`
+	TransactionID   string      `json:"transactionId,omitempty"`
+	ReferenceNo     string      `json:"referenceNo,omitempty"`
+	TransactionDate string      `json:"transactionDate,omitempty"`
+	RawDana         interface{} `json:"rawDana,omitempty"`
+}
+
+// TransferToDanaInquiryStatusRequest request untuk cek status transfer
+type TransferToDanaInquiryStatusRequest struct {
+	OriginalPartnerReferenceNo string `json:"originalPartnerReferenceNo" binding:"required"`
+	OriginalReferenceNo        string `json:"originalReferenceNo,omitempty"`
+}
+
+// TransferToDanaInquiryStatusResponse response dari cek status transfer
+type TransferToDanaInquiryStatusResponse struct {
+	ResponseCode            string      `json:"responseCode"`
+	ResponseMessage         string      `json:"responseMessage"`
+	LatestTransactionStatus string      `json:"latestTransactionStatus,omitempty"`
+	TransactionStatusDesc   string      `json:"transactionStatusDesc,omitempty"`
+	OriginalReferenceNo     string      `json:"originalReferenceNo,omitempty"`
+	RawDana                 interface{} `json:"rawDana,omitempty"`
 }

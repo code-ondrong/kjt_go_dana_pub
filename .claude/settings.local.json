@@ -2,7 +2,25 @@
   "permissions": {
     "allow": [
       "Bash(go mod tidy:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(go get:*)",
+      "WebFetch(domain:dashboard.dana.id)",
+      "Bash(go list:*)",
+      "Bash(go mod graph:*)",
+      "Bash(curl:*)",
+      "Bash(go doc:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "WebSearch"
     ]
+  },
+  "mcpServers": {
+    "DANA-MCP-INTEGRATION": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://dana-mcp.dana.id/sse"
+      ]
+    }
   }
 }
