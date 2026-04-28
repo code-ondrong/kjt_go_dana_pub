@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "DANA-MCP-INTEGRATION": {
+        "command": "npx",
+        "args": [
+            "mcp-remote",
+            "https://dana-mcp.dana.id/sse"
+        ]
+        }
+    }
+}

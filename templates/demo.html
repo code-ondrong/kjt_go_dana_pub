@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DANA QRIS Demo</title>
+<title>DANA Payment Gateway Demo</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Inter', 'Segoe UI', sans-serif; background: #0f172a; color: #f1f5f9; min-height: 100vh; padding: 2rem; }
@@ -21,8 +21,11 @@
   .btn:active { transform: translateY(0); }
   .btn-green { background: #10b981; }
   .btn-green:hover { background: #059669; }
-  .qr-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 256px;}
-  .qr-img { background: white; padding: 16px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-width: 256px; }
+  .btn-red { background: #ef4444; }
+  .btn-red:hover { background: #dc2626; }
+  .checkout-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px;}
+  .checkout-btn { background: #10b981; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; display: inline-block; margin-top: 1rem; }
+  .checkout-btn:hover { background: #059669; }
   .status { padding: 12px 16px; border-radius: 12px; margin-top: 1rem; font-size: 0.95rem; font-weight: 500; }
   .status.success { background: #064e3b; color: #34d399; border: 1px solid #065f46; }
   .status.error { background: #7f1d1d; color: #f87171; border: 1px solid #991b1b; }
@@ -32,30 +35,32 @@
   @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
   .log-entry { border-left: 2px solid #334155; padding-left: 12px; margin-bottom: 8px; }
   .log-time { color: #64748b; margin-right: 8px; font-size: 0.75rem; }
+  .url-display { background: #0f172a; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 0.875rem; word-break: break-all; margin-top: 1rem; border: 1px solid #334155; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🔷 DANA QRIS GATEWAY <span class="badge">Sandbox</span></h1>
-  <p style="color:#94a3b8; margin-top:6px">Integrasi QRIS Pembayaran DANA Real-time</p>
+  <h1>🔷 DANA Payment Gateway <span class="badge">Sandbox</span></h1>
+  <p style="color:#94a3b8; margin-top:6px">Integrasi Payment Gateway DANA Real-time (Hosted Checkout)</p>
   
   <div class="grid">
     <div class="card">
-      <h2>🆕 Buat QR Pembayaran</h2>
-      <div class="field"><label>Partner Reference No</label><input id="refNo" value="INV-2024001" /></div>
+      <h2>🆕 Buat Payment Order</h2>
+      <div class="field"><label>Partner Reference No</label><input id="refNo" value="PAY-2024001" /></div>
+      <div class="field"><label>Merchant ID</label><input id="merchantId" placeholder="MERCHANT_ID dari .env" /></div>
       <div class="field"><label>Jumlah (IDR)</label><input id="amount" type="number" value="1000" /></div>
-      <div class="field"><label>Keterangan</label><input id="desc" value="Pembayaran Toko XYZ" /></div>
-      <button class="btn" onclick="createQR()">Buat QRIS</button>
+      <div class="field"><label>Judul Order</label><input id="orderTitle" value="Pembayaran Test" /></div>
+      <button class="btn" onclick="createPaymentOrder()">Buat Order</button>
       
-      <div id="qrResult" class="qr-container" style="display:none; margin-top:2rem">
-         <div id="qrStatus" class="status info">⏳ Menunggu generate...</div>
-         <div id="qrPlaceholder" style="margin-top:1rem"></div>
+      <div id="checkoutResult" class="checkout-container" style="display:none; margin-top:2rem">
+         <div id="checkoutStatus" class="status info">⏳ Membuat order...</div>
+         <div id="checkoutPlaceholder" style="margin-top:1rem"></div>
       </div>
     </div>
     
     <div class="card">
       <h2>🔍 Cek Status</h2>
-      <div class="field"><label>Partner Reference No</label><input id="queryRef" placeholder="INV-xxx" /></div>
+      <div class="field"><label>Partner Reference No</label><input id="queryRef" placeholder="PAY-xxx" /></div>
       <button class="btn btn-green" onclick="queryPayment()">Mengecek Status</button>
       <div id="queryResult" style="margin-top:1.5rem"></div>
     </div>
@@ -92,57 +97,64 @@ function connectSSE(channel) {
         'SUCCESS': '#10b981',
         'FAILED': '#f43f5e',
         'WAITING_PAYMENT': '#f59e0b',
-        'INITIATED': '#38bdf8'
+        '00': '#10b981',
+        '01': '#38bdf8',
+        '02': '#f59e0b',
+        '05': '#f43f5e'
     }[d.status] || '#94a3b8';
     
     appendLog('💳 Payment Update: ' + d.partnerReferenceNo + ' &rarr; <strong style="color:' + statusColor + '">' + d.status + '</strong>');
     
-    if (d.status === 'SUCCESS') {
-        document.getElementById('qrStatus').className = 'status success';
-        document.getElementById('qrStatus').innerHTML = '✅ Pembayaran Berhasil!';
+    if (d.status === '00') {
+        document.getElementById('checkoutStatus').className = 'status success';
+        document.getElementById('checkoutStatus').innerHTML = '✅ Pembayaran Berhasil!';
     }
   });
   sseSource.onerror = () => appendLog('⚠️ SSE Putus/Error', 'error');
 }
 
-async function createQR() {
+async function createPaymentOrder() {
   const refNo = document.getElementById('refNo').value;
+  const merchantId = document.getElementById('merchantId').value;
   const amount = parseFloat(document.getElementById('amount').value);
-  const desc = document.getElementById('desc').value;
+  const orderTitle = document.getElementById('orderTitle').value;
   
-  const resultDiv = document.getElementById('qrResult');
-  const statusDiv = document.getElementById('qrStatus');
-  const placeholder = document.getElementById('qrPlaceholder');
+  const resultDiv = document.getElementById('checkoutResult');
+  const statusDiv = document.getElementById('checkoutStatus');
+  const placeholder = document.getElementById('checkoutPlaceholder');
   
   resultDiv.style.display = 'flex';
   statusDiv.className = 'status info';
-  statusDiv.innerHTML = '⏳ Menghubungi DANA API...';
+  statusDiv.innerHTML = '⏳ Menghubungi DANA Payment Gateway...';
   placeholder.innerHTML = '';
   
   try {
-    const res = await fetch('/api/qris/create', {
+    const res = await fetch('/api/v1/payment/create', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             partnerReferenceNo: refNo,
-            amount: amount,
-            description: desc
+            merchantId: merchantId,
+            amount: amount.toString(),
+            currency: 'IDR',
+            orderTitle: orderTitle
         })
     });
     
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Gagal membuat QRIS');
+    if (!res.ok) throw new Error(data.error || 'Gagal membuat payment order');
     
     connectSSE(refNo);
     
     statusDiv.className = 'status info';
-    statusDiv.innerHTML = '⏳ Scan QR di bawah untuk membayar';
+    statusDiv.innerHTML = '⏳ Redirect ke checkout DANA...';
     
-    if (data.qrImageBase64) {
-      placeholder.innerHTML = '<img class="qr-img" src="' + data.qrImageBase64 + '" alt="DANA QRIS" />';
+    if (data.data && data.data.checkoutUrl) {
+      placeholder.innerHTML = '<a href="' + data.data.checkoutUrl + '" target="_blank" class="checkout-btn">Buka Checkout DANA</a>' +
+        '<div class="url-display">' + data.data.checkoutUrl + '</div>';
     }
     
-    appendLog('🆕 QRIS Dibuat: ' + refNo + ' | Rp ' + amount.toLocaleString('id-ID'));
+    appendLog('🆕 Payment Order Dibuat: ' + refNo + ' | Rp ' + amount.toLocaleString('id-ID'));
     document.getElementById('queryRef').value = refNo;
     
   } catch(e) {
@@ -161,18 +173,21 @@ async function queryPayment() {
   resultDiv.innerHTML = '<div class="status info">⏳ Mengecek status...</div>';
   
   try {
-    const res = await fetch('/api/qris/status/' + refNo);
+    const res = await fetch('/api/v1/payment/query?partnerReferenceNo=' + encodeURIComponent(refNo));
     const data = await res.json();
     
     if (!res.ok) throw new Error(data.error || 'Gagal query status');
     
-    const isSuccess = data.transactionStatus === 'SUCCESS';
-    resultDiv.innerHTML = '<div class="status ' + (isSuccess ? 'success' : 'info') + '">' + 
-      'Status: <strong>' + data.transactionStatus + '</strong><br>' +
-      'Ref DANA: ' + data.referenceNo + '<br>' +
-      'Waktu: ' + (data.paidTime || '-') + '</div>';
+    const statusLabels = {'00': 'SUCCESS', '01': 'INITIATED', '02': 'PAYING', '05': 'CANCELLED'};
+    const statusText = statusLabels[data.data.paymentStatus] || data.data.paymentStatus;
+    const isSuccess = data.data.paymentStatus === '00';
     
-    appendLog('🔍 Query Status: ' + refNo + ' &rarr; ' + data.transactionStatus);
+    resultDiv.innerHTML = '<div class="status ' + (isSuccess ? 'success' : 'info') + '">' + 
+      'Status: <strong>' + statusText + '</strong><br>' +
+      'Ref DANA: ' + data.data.referenceNo + '<br>' +
+      'Waktu: ' + (data.data.paidTime || '-') + '</div>';
+    
+    appendLog('🔍 Query Status: ' + refNo + ' &rarr; ' + statusText);
   } catch(e) {
     resultDiv.innerHTML = '<div class="status error">❌ ' + e.message + '</div>';
   }

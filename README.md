@@ -1,14 +1,24 @@
-# DANA Shop Management API (Go + Gin)
+# DANA Payment Gateway API (Go + Gin)
 
-✅ **SDK API Working**: Official DANA SDK integration for Shop Management API.
+✅ **Payment Gateway UAT Ready**: Official DANA SDK integration for Payment Gateway + Shop Management API.
 
-## 📦 SDK API Implementation
+## 📦 API Implementation
 
-This project uses the **Official DANA SDK** (`github.com/dana-id/dana-go`) for Shop Management API with proper RSA Signature authentication.
+This project uses the **Official DANA SDK** (`github.com/dana-id/dana-go`) for Shop Management and custom SNAP implementation for Payment Gateway with proper RSA Signature authentication.
 
 ### API Endpoints
 
 All endpoints are under `/api/v1`:
+
+#### Payment Gateway (SNAP Implementation)
+```
+POST /api/v1/payment/create  - Create payment order (Hosted Checkout)
+GET  /api/v1/payment/query   - Query payment status
+POST /api/v1/payment/cancel  - Cancel payment order
+POST /api/v1/payment/refund  - Refund payment
+POST /webhook/dana           - Payment webhook notification
+GET  /sse/payment            - SSE real-time payment updates
+```
 
 #### Shop Management (Official SDK)
 ```
@@ -26,12 +36,15 @@ POST /api/v1/division/update  - Update division information
 
 #### Disbursement (Official SDK)
 ```
+POST /api/v1/disbursement/account-inquiry - Account inquiry
 POST /api/v1/disbursement/transfer-to-dana - Disbursement to DANA balance
+POST /api/v1/disbursement/transfer-to-dana/status - Query transfer status
 ```
 
 #### Common
 ```
 GET  /api/v1/health        - Health check
+GET  /                     - Demo page
 ```
 
 ---

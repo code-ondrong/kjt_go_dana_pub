@@ -22,6 +22,12 @@ func main() {
 	// Configuration
 	cfg := config.DefaultConfig()
 
+	// Validate Payment Gateway configuration (fail-fast)
+	if err := cfg.ValidatePaymentGateway(); err != nil {
+		log.Fatalf("❌ Payment Gateway configuration error: %v", err)
+	}
+	log.Printf("✅ Payment Gateway configuration validated")
+
 	// Initialize Official DANA SDK client
 	sdkClient, err := dana.NewSDKClient(cfg)
 	if err != nil {
@@ -47,9 +53,12 @@ func main() {
 
 	// Run server
 	addr := fmt.Sprintf(":%d", cfg.ServerPort)
-	log.Printf("🚀 DANA Shop Management Server started on http://localhost:%d", cfg.ServerPort)
+	log.Printf("🚀 DANA Payment Gateway Server started on http://localhost:%d", cfg.ServerPort)
+	log.Printf("💳 Payment Gateway API: /api/v1/payment/*")
+	log.Printf("🔔 Webhook: POST /webhook/dana")
 	log.Printf("📦 Shop API: /api/v1/shop/*")
 	log.Printf("🏥 Health Check: /api/v1/health")
+	log.Printf("📡 SSE Events: GET /sse/payment")
 
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("❌ Failed to start server: %v", err)

@@ -153,6 +153,9 @@ const (
 
 // CreateShopRequest request untuk membuat shop baru
 type CreateShopRequest struct {
+	// Merchant ID (required by DANA) - auto-filled from config if empty
+	MerchantId string `json:"merchantId,omitempty"`
+
 	// Parent type: MERCHANT atau DIVISION
 	ShopParentType string `json:"shopParentType" binding:"required"`
 
@@ -475,11 +478,29 @@ type ShopInfo struct {
 
 // CreateDivisionRequest request untuk membuat division baru
 type CreateDivisionRequest struct {
-	MerchantId         string   `json:"merchantId" binding:"required"`
-	ExternalDivisionId string   `json:"externalDivisionId" binding:"required"`
-	MainName           string   `json:"mainName" binding:"required"`
-	DivisionDesc       string   `json:"divisionDesc,omitempty"`
-	MccCodes           []string `json:"mccCodes,omitempty"`
+	ApiVersion         string                        `json:"apiVersion,omitempty"`
+	CreateTime         string                        `json:"createTime,omitempty"`
+	MerchantId         string                        `json:"merchantId" binding:"required"`
+	ParentDivisionId   string                        `json:"parentDivisionId,omitempty"`
+	ParentRoleType     string                        `json:"parentRoleType,omitempty"` // MERCHANT, HEAD_OFFICE, BRANCH_OFFICE
+	DivisionName       string                        `json:"divisionName,omitempty"`
+	DivisionDesc       string                        `json:"divisionDesc,omitempty"`
+	DivisionType       string                        `json:"divisionType,omitempty"`
+	DivisionAddress    *AddressInfo                  `json:"divisionAddress,omitempty"`
+	ExternalDivisionId string                        `json:"externalDivisionId,omitempty"`
+	SizeType           string                        `json:"sizeType,omitempty"` // UMI, UKE, UME, UBE
+	MccCodes           []string                      `json:"mccCodes,omitempty"`
+	ExtInfo            *CreateDivisionRequestExtInfo `json:"extInfo,omitempty"`
+	BusinessEntity     string                        `json:"businessEntity,omitempty"`
+	BusinessDocs       []BusinessDocs                `json:"businessDocs,omitempty"`
+	OwnerName          *UserName                     `json:"ownerName,omitempty"`
+	OwnerPhoneNumber   *MobileNoInfo                 `json:"ownerPhoneNumber,omitempty"`
+	OwnerIdType        string                        `json:"ownerIdType,omitempty"`
+	OwnerIdNo          string                        `json:"ownerIdNo,omitempty"`
+	OwnerAddress       *AddressInfo                  `json:"ownerAddress,omitempty"`
+	DirectorPics       []PicInfo                     `json:"directorPics,omitempty"`
+	NonDirectorPics    []PicInfo                     `json:"nonDirectorPics,omitempty"`
+	PgDivisionFlag     string                        `json:"pgDivisionFlag,omitempty"`
 }
 
 // CreateDivisionResponse response dari pembuatan division
@@ -493,11 +514,30 @@ type CreateDivisionResponse struct {
 
 // UpdateDivisionRequest request untuk mengupdate division
 type UpdateDivisionRequest struct {
-	DivisionId     string  `json:"divisionId" binding:"required"`
-	DivisionIdType string  `json:"divisionIdType" binding:"required"` // INNER_ID or EXTERNAL_ID
-	MerchantId     string  `json:"merchantId" binding:"required"`
-	MainName       *string `json:"mainName,omitempty"`
-	DivisionDesc   *string `json:"divisionDesc,omitempty"`
+	DivisionId            string                 `json:"divisionId" binding:"required"`
+	DivisionIdType        string                 `json:"divisionIdType" binding:"required"` // INNER_ID or EXTERNAL_ID
+	MerchantId            string                 `json:"merchantId" binding:"required"`
+	NewExternalDivisionId string                 `json:"newExternalDivisionId,omitempty"`
+	MainName              *string                `json:"mainName,omitempty"`
+	DivisionDesc          *string                `json:"divisionDesc,omitempty"`
+	DivisionType          string                 `json:"divisionType,omitempty"`
+	DivisionAddress       *AddressInfo           `json:"divisionAddress,omitempty"`
+	MccCodes              []string               `json:"mccCodes,omitempty"`
+	ExtInfo               map[string]interface{} `json:"extInfo,omitempty"`
+	ApiVersion            *string                `json:"apiVersion,omitempty"`
+	BusinessEntity        *string                `json:"businessEntity,omitempty"`
+	BusinessEndDate       *string                `json:"businessEndDate,omitempty"`
+	BusinessDocs          []BusinessDocs         `json:"businessDocs,omitempty"`
+	OwnerName             *UserName              `json:"ownerName,omitempty"`
+	OwnerPhoneNumber      *MobileNoInfo          `json:"ownerPhoneNumber,omitempty"`
+	OwnerIdType           *string                `json:"ownerIdType,omitempty"`
+	OwnerIdNo             *string                `json:"ownerIdNo,omitempty"`
+	OwnerAddress          *AddressInfo           `json:"ownerAddress,omitempty"`
+	DirectorPics          []PicInfo              `json:"directorPics,omitempty"`
+	NonDirectorPics       []PicInfo              `json:"nonDirectorPics,omitempty"`
+	SizeType              *string                `json:"sizeType,omitempty"`
+	PgDivisionFlag        *string                `json:"pgDivisionFlag,omitempty"`
+	LogoUrlMap            map[string]string      `json:"logoUrlMap,omitempty"`
 }
 
 // UpdateDivisionResponse response dari update division
@@ -511,7 +551,7 @@ type UpdateDivisionResponse struct {
 type QueryDivisionRequest struct {
 	MerchantId     string `form:"merchantId" binding:"required"`
 	DivisionId     string `form:"divisionId" binding:"required"`
-	DivisionIdType string `form:"divisionIdType" binding:"required"` // INNER_ID or EXTERNAL_ID
+	DivisionIdType string `form:"divisionIdType"` // INNER_ID or EXTERNAL_ID (auto-detected if empty)
 }
 
 // QueryDivisionResponse response dari query division
@@ -528,44 +568,305 @@ type DivisionInfo struct {
 	ExternalDivisionId string `json:"externalDivisionId"`
 	MainName           string `json:"mainName"`
 	DivisionDesc       string `json:"divisionDesc,omitempty"`
+	DivisionType       string `json:"divisionType,omitempty"`
+	ParentRoleType     string `json:"parentRoleType,omitempty"`
+	PgDivisionFlag     string `json:"pgDivisionFlag,omitempty"`
 	Status             string `json:"status"`
+}
+
+// AddressInfo informasi alamat untuk division
+// Digunakan untuk CreateDivision dan UpdateDivision
+type AddressInfo struct {
+	Country     string `json:"country,omitempty"`
+	Province    string `json:"province,omitempty"`
+	City        string `json:"city,omitempty"`
+	Area        string `json:"area,omitempty"`
+	Address1    string `json:"address1,omitempty"`
+	Address2    string `json:"address2,omitempty"`
+	Postcode    string `json:"postcode,omitempty"`
+	SubDistrict string `json:"subDistrict,omitempty"`
+}
+
+// UserName nama pemilik/pic
+type UserName struct {
+	FirstName string `json:"firstName,omitempty"`
+	LastName  string `json:"lastName,omitempty"`
+}
+
+// PicInfo informasi PIC (Person In Charge)
+type PicInfo struct {
+	PicName     string `json:"picName,omitempty"`
+	PicPosition string `json:"picPosition,omitempty"`
+}
+
+// BusinessDocs dokumen bisnis
+type BusinessDocs struct {
+	DocType string `json:"docType,omitempty"`
+	DocId   string `json:"docId,omitempty"`
+	DocFile string `json:"docFile,omitempty"`
+}
+
+// CreateDivisionRequestExtInfo informasi tambahan untuk create division
+type CreateDivisionRequestExtInfo struct {
+	PIC_EMAIL       string `json:"PIC_EMAIL,omitempty"`
+	PIC_PHONENUMBER string `json:"PIC_PHONENUMBER,omitempty"`
+	SUBMITTER_EMAIL string `json:"SUBMITTER_EMAIL,omitempty"`
+	GOODS_SOLD_TYPE string `json:"GOODS_SOLD_TYPE,omitempty"`
+	USECASE         string `json:"USECASE,omitempty"`
+	USER_PROFILING  string `json:"USER_PROFILING,omitempty"`
+	AVG_TICKET      string `json:"AVG_TICKET,omitempty"`
+	OMZET           string `json:"OMZET,omitempty"`
+	EXT_URLS        string `json:"EXT_URLS,omitempty"`
+	BRAND_NAME      string `json:"BRAND_NAME,omitempty"`
 }
 
 // ============================================================
 // DISBURSEMENT TYPES
 // ============================================================
 
+// AccountInquiryRequest request untuk inquiry akun DANA
+type AccountInquiryRequest struct {
+	PartnerReferenceNo string      `json:"partnerReferenceNo,omitempty"`
+	CustomerNumber     string      `json:"customerNumber" binding:"required"`
+	Amount             json.Number `json:"amount,omitempty"`
+	Currency           string      `json:"currency,omitempty"` // IDR
+}
+
+// AccountInquiryResponse response dari inquiry akun DANA
+type AccountInquiryResponse struct {
+	ResponseCode          string                 `json:"responseCode"`
+	ResponseMessage       string                 `json:"responseMessage"`
+	PartnerReferenceNo    string                 `json:"partnerReferenceNo,omitempty"`
+	ReferenceNo           string                 `json:"referenceNo,omitempty"`
+	CustomerNumber        string                 `json:"customerNumber,omitempty"`
+	CustomerName          string                 `json:"customerName,omitempty"`
+	CustomerMonthlyInLimit string                `json:"customerMonthlyInLimit,omitempty"`
+	Amount                string                 `json:"amount,omitempty"`
+	Currency              string                 `json:"currency,omitempty"`
+	FeeAmount             string                 `json:"feeAmount,omitempty"`
+	FeeCurrency           string                 `json:"feeCurrency,omitempty"`
+	MinAmount             string                 `json:"minAmount,omitempty"`
+	MinCurrency           string                 `json:"minCurrency,omitempty"`
+	MaxAmount             string                 `json:"maxAmount,omitempty"`
+	MaxCurrency           string                 `json:"maxCurrency,omitempty"`
+	AdditionalInfo        map[string]interface{} `json:"additionalInfo,omitempty"`
+	RawDana               interface{}            `json:"rawDana,omitempty"`
+}
+
 // TransferToDanaRequest request untuk transfer ke DANA balance
+// Per DANA UAT script: feeAmount should be {value: "1.00", currency: "IDR"}
 type TransferToDanaRequest struct {
 	PartnerReferenceNo string      `json:"partnerReferenceNo" binding:"required"`
 	Amount             json.Number `json:"amount" binding:"required"`
 	Currency           string      `json:"currency" binding:"required"` // IDR
+	FeeAmount          json.Number `json:"feeAmount,omitempty"`         // Fee amount, default "1.00" per UAT script
+	FeeCurrency        string      `json:"feeCurrency,omitempty"`        // Fee currency, defaults to same as Currency
 	CustomerNumber     string      `json:"customerNumber" binding:"required"`
 	Notes              string      `json:"notes,omitempty"`
 }
 
 // TransferToDanaResponse response dari transfer ke DANA balance
 type TransferToDanaResponse struct {
-	ResponseCode    string      `json:"responseCode"`
-	ResponseMessage string      `json:"responseMessage"`
-	TransactionID   string      `json:"transactionId,omitempty"`
-	ReferenceNo     string      `json:"referenceNo,omitempty"`
-	TransactionDate string      `json:"transactionDate,omitempty"`
-	RawDana         interface{} `json:"rawDana,omitempty"`
+	ResponseCode       string                 `json:"responseCode"`
+	ResponseMessage    string                 `json:"responseMessage"`
+	PartnerReferenceNo string                 `json:"partnerReferenceNo,omitempty"`
+	ReferenceNo        string                 `json:"referenceNo,omitempty"`
+	CustomerNumber     string                 `json:"customerNumber,omitempty"`
+	CustomerName       string                 `json:"customerName,omitempty"`
+	Amount             string                 `json:"amount,omitempty"`
+	Currency           string                 `json:"currency,omitempty"`
+	FeeAmount          string                 `json:"feeAmount,omitempty"`
+	FeeCurrency        string                 `json:"feeCurrency,omitempty"`
+	AdditionalInfo     map[string]interface{} `json:"additionalInfo,omitempty"`
+	RawDana            interface{}            `json:"rawDana,omitempty"`
 }
 
 // TransferToDanaInquiryStatusRequest request untuk cek status transfer
 type TransferToDanaInquiryStatusRequest struct {
-	OriginalPartnerReferenceNo string `json:"originalPartnerReferenceNo" binding:"required"`
-	OriginalReferenceNo        string `json:"originalReferenceNo,omitempty"`
+	OriginalPartnerReferenceNo string                 `json:"originalPartnerReferenceNo" binding:"required"`
+	OriginalReferenceNo        string                 `json:"originalReferenceNo,omitempty"`
+	OriginalExternalId         string                 `json:"originalExternalId,omitempty"`
+	ServiceCode                string                 `json:"serviceCode,omitempty"` // Default: "38"
+	AdditionalInfo             map[string]interface{} `json:"additionalInfo,omitempty"`
 }
 
 // TransferToDanaInquiryStatusResponse response dari cek status transfer
 type TransferToDanaInquiryStatusResponse struct {
-	ResponseCode            string      `json:"responseCode"`
-	ResponseMessage         string      `json:"responseMessage"`
-	LatestTransactionStatus string      `json:"latestTransactionStatus,omitempty"`
-	TransactionStatusDesc   string      `json:"transactionStatusDesc,omitempty"`
-	OriginalReferenceNo     string      `json:"originalReferenceNo,omitempty"`
-	RawDana                 interface{} `json:"rawDana,omitempty"`
+	ResponseCode               string      `json:"responseCode"`
+	ResponseMessage            string      `json:"responseMessage"`
+	OriginalPartnerReferenceNo string      `json:"originalPartnerReferenceNo,omitempty"`
+	OriginalReferenceNo        string      `json:"originalReferenceNo,omitempty"`
+	OriginalExternalId         string      `json:"originalExternalId,omitempty"`
+	ServiceCode                string      `json:"serviceCode,omitempty"`
+	Amount                     string      `json:"amount,omitempty"`
+	Currency                   string      `json:"currency,omitempty"`
+	LatestTransactionStatus    string      `json:"latestTransactionStatus,omitempty"`
+	TransactionStatusDesc      string      `json:"transactionStatusDesc,omitempty"`
+	RawDana                    interface{} `json:"rawDana,omitempty"`
 }
+
+// ============================================================
+// PAYMENT GATEWAY TYPES (Hosted Checkout & API Checkout)
+// ============================================================
+
+// PaymentOrderGoods item barang dalam order
+type PaymentOrderGoods struct {
+	GoodsID     string `json:"goodsId,omitempty"`
+	GoodsName   string `json:"goodsName,omitempty"`
+	GoodsAmount string `json:"goodsAmount,omitempty"`
+	GoodsQty    string `json:"goodsQty,omitempty"`
+}
+
+// PaymentOrderAdditionalInfo info tambahan untuk Payment Gateway
+type PaymentOrderAdditionalInfo struct {
+	EnvInfo *PaymentEnvInfo   `json:"envInfo,omitempty"`
+	MCC     string            `json:"mcc,omitempty"`
+	Order   *PaymentOrderInfo `json:"order,omitempty"`
+}
+
+// PaymentEnvInfo info environment
+type PaymentEnvInfo struct {
+	SourcePlatform string `json:"sourcePlatform,omitempty"` // IPG, APP, WEB
+	TerminalType   string `json:"terminalType,omitempty"`   // WEB, MOBILE, TABLET
+}
+
+// PaymentOrderInfo info order
+type PaymentOrderInfo struct {
+	Goods      []PaymentOrderGoods `json:"goods,omitempty"`
+	OrderTitle string              `json:"orderTitle,omitempty"`
+	Scenario   string              `json:"scenario,omitempty"` // API, HOSTED
+}
+
+// CreatePaymentOrderRequest untuk membuat order Payment Gateway
+type CreatePaymentOrderRequest struct {
+	PartnerReferenceNo string                      `json:"partnerReferenceNo" binding:"required"`
+	MerchantID         string                      `json:"merchantId" binding:"required"`
+	Amount             Amount                      `json:"amount" binding:"required"`
+	PayOptionDetails   []PaymentOptionDetail       `json:"payOptionDetails,omitempty"`
+	URLParams          []URLParam                  `json:"urlParams,omitempty"`
+	AdditionalInfo     *PaymentOrderAdditionalInfo `json:"additionalInfo,omitempty"`
+	ValidUpTo          string                      `json:"validUpTo,omitempty"` // Format: 2006-01-02T15:04:05+07:00
+	Notes              string                      `json:"notes,omitempty"`
+}
+
+// PaymentOptionDetail detail opsi pembayaran
+type PaymentOptionDetail struct {
+	PayMethod      string  `json:"payMethod,omitempty"` // NETWORK_PAY, BALANCE_PAY, etc
+	PayOption      string  `json:"payOption,omitempty"` // NETWORK_PAY_PG_QRIS, etc
+	TransAmount    *Amount `json:"transAmount,omitempty"`
+	PromotedAmount *Amount `json:"promotedAmount,omitempty"`
+}
+
+// URLParam parameter URL untuk redirect
+type URLParam struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// CreatePaymentOrderResponse response dari create payment order
+type CreatePaymentOrderResponse struct {
+	ResponseCode       string      `json:"responseCode"`
+	ResponseMessage    string      `json:"responseMessage"`
+	PartnerReferenceNo string      `json:"partnerReferenceNo"`
+	ReferenceNo        string      `json:"referenceNo"`
+	CheckoutURL        string      `json:"checkoutUrl,omitempty"` // Untuk Hosted Checkout
+	PaymentStatus      string      `json:"paymentStatus,omitempty"`
+	PaidTime           string      `json:"paidTime,omitempty"`
+	RawDana            interface{} `json:"rawDana,omitempty"`
+}
+
+// QueryPaymentRequest untuk query status pembayaran
+type QueryPaymentRequest struct {
+	PartnerReferenceNo string `json:"partnerReferenceNo" binding:"required"`
+	MerchantID         string `json:"merchantId,omitempty"`
+}
+
+// QueryPaymentResponse response query pembayaran
+type QueryPaymentResponse struct {
+	ResponseCode       string      `json:"responseCode"`
+	ResponseMessage    string      `json:"responseMessage"`
+	PartnerReferenceNo string      `json:"partnerReferenceNo"`
+	ReferenceNo        string      `json:"referenceNo"`
+	PaymentStatus      string      `json:"paymentStatus"` // 00=SUCCESS, 01=INITIATED, 02=PAYING, 05=CANCELLED
+	PaymentAmount      string      `json:"paymentAmount,omitempty"`
+	Currency           string      `json:"currency,omitempty"`
+	PaidTime           string      `json:"paidTime,omitempty"`
+	RawDana            interface{} `json:"rawDana,omitempty"`
+}
+
+// CancelPaymentRequest untuk membatalkan pembayaran
+type CancelPaymentRequest struct {
+	PartnerReferenceNo  string `json:"partnerReferenceNo" binding:"required"`
+	OriginalReferenceNo string `json:"originalReferenceNo,omitempty"`
+	MerchantID          string `json:"merchantId,omitempty"`
+	Reason              string `json:"reason,omitempty"`
+}
+
+// CancelPaymentResponse response cancel pembayaran
+type CancelPaymentResponse struct {
+	ResponseCode       string      `json:"responseCode"`
+	ResponseMessage    string      `json:"responseMessage"`
+	PartnerReferenceNo string      `json:"partnerReferenceNo"`
+	ReferenceNo        string      `json:"referenceNo"`
+	CancelStatus       string      `json:"cancelStatus,omitempty"`
+	RawDana            interface{} `json:"rawDana,omitempty"`
+}
+
+// RefundPaymentRequest untuk refund pembayaran
+type RefundPaymentRequest struct {
+	PartnerReferenceNo  string `json:"partnerReferenceNo" binding:"required"`
+	OriginalReferenceNo string `json:"originalReferenceNo" binding:"required"`
+	MerchantID          string `json:"merchantId,omitempty"`
+	RefundAmount        Amount `json:"refundAmount" binding:"required"`
+	Reason              string `json:"reason" binding:"required"`
+}
+
+// RefundPaymentResponse response refund pembayaran
+type RefundPaymentResponse struct {
+	ResponseCode       string      `json:"responseCode"`
+	ResponseMessage    string      `json:"responseMessage"`
+	PartnerReferenceNo string      `json:"partnerReferenceNo"`
+	ReferenceNo        string      `json:"referenceNo"`
+	RefundReferenceNo  string      `json:"refundReferenceNo,omitempty"`
+	RefundStatus       string      `json:"refundStatus,omitempty"`
+	RawDana            interface{} `json:"rawDana,omitempty"`
+}
+
+// ConsultPayRequest untuk consult pay (jika diperlukan)
+type ConsultPayRequest struct {
+	PartnerReferenceNo string `json:"partnerReferenceNo" binding:"required"`
+	MerchantID         string `json:"merchantId,omitempty"`
+	PayOption          string `json:"payOption,omitempty"`
+}
+
+// ConsultPayResponse response consult pay
+type ConsultPayResponse struct {
+	ResponseCode       string      `json:"responseCode"`
+	ResponseMessage    string      `json:"responseMessage"`
+	PartnerReferenceNo string      `json:"partnerReferenceNo"`
+	ReferenceNo        string      `json:"referenceNo"`
+	PayOption          string      `json:"payOption,omitempty"`
+	PayURL             string      `json:"payUrl,omitempty"`
+	RawDana            interface{} `json:"rawDana,omitempty"`
+}
+
+// PaymentGatewayNotification payload notifikasi dari DANA
+type PaymentGatewayNotification struct {
+	PartnerReferenceNo string `json:"partnerReferenceNo"`
+	ReferenceNo        string `json:"referenceNo"`
+	MerchantID         string `json:"merchantId"`
+	TransactionStatus  string `json:"transactionStatus"`
+	Amount             Amount `json:"amount"`
+	PaidAmount         Amount `json:"paidAmount,omitempty"`
+	PaidTime           string `json:"paidTime,omitempty"`
+	Signature          string `json:"signature,omitempty"`
+}
+
+// Payment Status Codes
+const (
+	PaymentStatusSuccess   = "00" // Payment completed successfully
+	PaymentStatusInitiated = "01" // Order created, waiting for payment
+	PaymentStatusPaying    = "02" // Payment is being processed
+	PaymentStatusCancelled = "05" // Order was cancelled
+	PaymentStatusNotFound  = "07" // Order not found
+)

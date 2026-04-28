@@ -1,39 +1,32 @@
-# Payment Gateway API Implementation using Official DANA SDK
+# Payment Gateway API Implementation (SNAP)
 
 ## Overview
 
-This document describes the Payment Gateway API implementation using the official DANA SDK (`github.com/dana-id/dana-go`).
+This document describes the Payment Gateway API implementation using **DANA SNAP (Standard National API Payment)** protocol with manual RSA signature.
 
-## Key Differences: Payment Gateway vs QRIS API
+## Architecture
 
-### Payment Gateway (Gapura)
-- **Output**: Checkout URL that redirects users to DANA payment page
-- **User Flow**: User is redirected to DANA → Completes payment → Redirected back
-- **Payment Methods**: Supports all DANA payment methods (Balance, Linked Banks, QRIS, etc.)
-- **Use Cases**: E-commerce checkout, Mobile app payments, Web payments
-- **Authentication**: RSA Signature (handled automatically by SDK)
+Payment Gateway menggunakan implementasi SNAP manual (bukan SDK) karena:
+1. SDK `dana-go` tidak menyediakan modul Payment Gateway
+2. SNAP memerlukan header khusus: `X-TIMESTAMP`, `X-SIGNATURE`, `X-PARTNER-ID`, `CHANNEL-ID`, `ORIGIN`
+3. Signature menggunakan RSA SHA256 dengan format khusus
 
-### QRIS API (Manual)
-- **Output**: QR Code string/image
-- **User Flow**: User scans QR with DANA app → Pays
-- **Payment Methods**: QRIS only
-- **Use Cases**: In-store payments, In-person transactions
-- **Authentication**: Bearer token (ClientSecret)
+## API Endpoints
 
-## SDK API Endpoints
+### 1. Create Payment Order (Hosted Checkout)
+**Endpoint:** `POST /api/v1/payment/create`
 
-### 1. Create Payment Order
-**Endpoint:** `POST /api/v1/sdk/payment/create`
-
-Creates a payment order and returns a checkout URL.
+Creates a payment order and returns a checkout URL for Hosted Checkout.
 
 **Request Body:**
 ```json
 {
-  "orderId": "ORDER-20240223-001",
+  "partnerReferenceNo": "PAY-20240223-001",
   "merchantId": "YOUR_MERCHANT_ID",
-  "amount": 15000,
-  "orderTitle": "Coffee Shop Payment"
+  "amount": "15000.00",
+  "currency": "IDR",
+  "orderTitle": "Coffee Shop Payment",
+  "validUpTo": "2024-02-23T15:30:00+07:00"
 }
 ```
 
@@ -44,10 +37,152 @@ Creates a payment order and returns a checkout URL.
   "data": {
     "responseCode": "2005400",
     "responseMessage": "SUCCESS",
-    "orderId": "ORDER-20240223-001",
+    "partnerReferenceNo": "PAY-20240223-001",
+    "referenceNo": "20240223123456789",
     "checkoutUrl": "https://checkout-sandbox.dana.id/v1/payment/index.html?...",
-    "referenceNo": "20240223123456789"
+    "paymentStatus": "01"
   }
+}
+```
+
+### 2. Query Payment Status
+**Endpoint:** `GET /api/v1/payment/query?partnerReferenceNo=PAY-xxx`
+
+Queries the status of a payment order.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "responseCode": "2005400",
+    "responseMessage": "SUCCESS",
+    "partnerReferenceNo": "PAY-20240223-001",
+    "referenceNo": "20240223123456789",
+    "paymentStatus": "00",
+    "paymentAmount": "15000.00",
+    "currency": "IDR",
+    "paidTime": "2024-02-23T14:25:30+07:00"
+  }
+}
+```
+
+**Payment Status Codes:**
+- `00` - SUCCESS (Payment completed)
+- `01` - INITIATED (Order created, waiting for payment)
+- `02` - PAYING (Payment is being processed)
+- `05` - CANCELLED (Order was cancelled)
+
+### 3. Cancel Payment
+**Endpoint:** `POST /api/v1/payment/cancel`
+
+Cancels an unpaid payment order.
+
+**Request Body:**
+```json
+{
+  "partnerReferenceNo": "PAY-20240223-001",
+  "originalReferenceNo": "20240223123456789",
+  "reason": "Customer request"
+}
+```
+
+### 4. Refund Payment
+**Endpoint:** `POST /api/v1/payment/refund`
+
+Refunds a completed payment.
+
+**Request Body:**
+```json
+{
+  "partnerReferenceNo": "REFUND-20240223-001",
+  "originalReferenceNo": "20240223123456789",
+  "refundAmount": "15000.00",
+  "currency": "IDR",
+  "reason": "Product out of stock"
+}
+```
+
+### 5. Webhook Notification
+**Endpoint:** `POST /webhook/dana`
+
+Receives payment status notifications from DANA.
+
+**Payload:**
+```json
+{
+  "partnerReferenceNo": "PAY-20240223-001",
+  "referenceNo": "20240223123456789",
+  "merchantId": "YOUR_MERCHANT_ID",
+  "transactionStatus": "00",
+  "amount": {
+    "value": "15000.00",
+    "currency": "IDR"
+  },
+  "paidTime": "2024-02-23T14:25:30+07:00"
+}
+```
+
+## SNAP Header Requirements
+
+| Header | Value | Source |
+|--------|-------|--------|
+| `Content-Type` | `application/json` | Fixed |
+| `X-TIMESTAMP` | `2024-02-23T14:25:30+07:00` | GMT+7 format |
+| `X-SIGNATURE` | Base64(RSA-SHA256) | Generated |
+| `X-PARTNER-ID` | Partner ID | `.env` DANA_PARTNER_ID |
+| `X-EXTERNAL-ID` | partnerReferenceNo | Request |
+| `CHANNEL-ID` | `95221` | `.env` CHANNEL_ID |
+| `ORIGIN` | `http://localhost:8888` | `.env` ORIGIN |
+
+## Signature Generation
+
+```
+StringToSign = SHA256(BodyJSON + Timestamp)
+Signature = Base64(RSA-Sign-PKCS1v15(StringToSign))
+```
+
+**Important:**
+- Body JSON must be minified (no extra spaces)
+- Timestamp format: `2006-01-02T15:04:05+07:00` (GMT+7)
+- Private key must be in PEM format
+
+## Environment Variables
+
+```env
+# Required for Payment Gateway
+DANA_PARTNER_ID=your_partner_id
+DANA_MERCHANT_ID=your_merchant_id
+DANA_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+CHANNEL_ID=95221
+ORIGIN=http://localhost:8888
+DANA_ENV=sandbox
+
+# Optional
+DANA_CLIENT_ID=your_client_id
+DANA_CLIENT_SECRET=your_client_secret
+```
+
+## UAT Scenarios
+
+### Mandatory Scenarios
+1. **Create Payment Order** - Generate checkout URL
+2. **Query Payment Status** - Check order status
+3. **Webhook Notification** - Receive status update
+
+### Additional Scenarios
+4. **Cancel Payment** - Cancel unpaid order
+5. **Refund Payment** - Refund completed payment
+
+## Testing with Demo Page
+
+Access `http://localhost:8888` for interactive testing:
+- Create payment orders
+- Monitor real-time status via SSE
+- View checkout URLs
+- Track payment status updates
 }
 ```
 

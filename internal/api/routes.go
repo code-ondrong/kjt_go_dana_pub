@@ -38,16 +38,23 @@ func SetupRoutes(r *gin.Engine, h *SDKAPIHandler, sseBroker *sse.Broker) {
 		// Disbursement endpoints
 		disbursement := api.Group("/disbursement")
 		{
+			disbursement.POST("/account-inquiry", h.AccountInquiry)
 			disbursement.POST("/transfer-to-dana", h.TransferToDana)
 			disbursement.POST("/transfer-to-dana/status", h.TransferToDanaInquiryStatus)
 		}
+
+		// Payment Gateway endpoints
+		payment := api.Group("/payment")
+		{
+			payment.POST("/create", h.CreatePaymentOrder)
+			payment.GET("/query", h.QueryPayment)
+			payment.POST("/cancel", h.CancelPayment)
+			payment.POST("/refund", h.RefundPayment)
+		}
 	}
 
-	// Webhook endpoint
-	r.POST("/webhook/dana", func(c *gin.Context) {
-		// Webhook handler - placeholder for future implementation
-		c.JSON(200, gin.H{"success": true, "message": "webhook received"})
-	})
+	// Webhook endpoint - Payment Gateway notifications
+	r.POST("/webhook/dana", h.WebhookPayment)
 
 	// SSE endpoint (for real-time updates)
 	r.GET("/sse/payment", func(c *gin.Context) {
